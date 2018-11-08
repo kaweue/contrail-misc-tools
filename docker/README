@@ -1,0 +1,4 @@
+Recommended usage:
+
+docker build . -t contrail-builder
+docker run -it -v ~/sandbox:/root/sandbox contrail-builder bash

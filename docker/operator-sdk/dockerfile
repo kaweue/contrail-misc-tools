@@ -1,0 +1,7 @@
+FROM golang:1.12-alpine
+
+RUN apk update && apk upgrade && \
+    apk add --no-cache bash git make
+
+RUN git clone --branch v0.10.x https://github.com/operator-framework/operator-sdk $GOPATH/src/operator-framework/operator-sdk
+RUN cd $GOPATH/src/operator-framework/operator-sdk; make install

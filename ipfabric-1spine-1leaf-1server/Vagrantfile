@@ -1,0 +1,117 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+VAGRANTFILE_API_VERSION = "2"
+
+UUID = "fab1"
+
+Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
+
+    config.ssh.insert_key = false
+
+    (1..2).each do |id|
+        re_name  = ( "vqfx" + id.to_s ).to_sym
+        pfe_name = ( "vqfx" + id.to_s + "-pfe" ).to_sym
+
+        ##############################
+        ## Packet Forwarding Engine ##
+        ##############################
+        config.vm.define pfe_name do |vqfxpfe|
+            vqfxpfe.ssh.insert_key = false
+            vqfxpfe.vm.box = 'juniper/vqfx10k-pfe'
+            vqfxpfe.vm.boot_timeout = 600
+
+            # DO NOT REMOVE / NO VMtools installed ttt
+            vqfxpfe.vm.synced_folder '.',
+                '/vagrant', disabled: true
+
+            # Internal em1 port to RE
+            vqfxpfe.vm.network 'private_network',
+                auto_config: false,
+                nic_type: '82540EM',
+                virtualbox__intnet: "#{UUID}_vqfx#{id}_internal"
+
+            # In case you have limited resources, you can limit the CPU used per vqfx-pfe VM, usually 50% is good
+            #vqfxpfe.vm.provider "virtualbox" do |v|
+            #   v.customize ["modifyvm", :id, "--cpuexecutioncap", "50"]
+            #end
+            vqfxpfe.vm.provider "virtualbox" do |v|
+               v.customize ["modifyvm", :id, "--cpuexecutioncap", "50"]
+               v.customize ["modifyvm", :id, "--memory", "1024", "--cpus", "1"]
+            end
+        end
+
+        ##########################
+        ## Routing Engine  #######
+        ##########################
+        config.vm.define re_name do |vqfx|
+            vqfx.vm.hostname = "vqfx#{id}"
+            vqfx.vm.box = 'juniper/vqfx10k-re'
+            vqfx.vm.boot_timeout = 600
+
+            # DO NOT REMOVE / NO VMtools installed
+            vqfx.vm.synced_folder '.',
+                '/vagrant', disabled: true
+
+            # Internal em1 port to PFE
+            vqfx.vm.network 'private_network',
+                auto_config: false,
+                nic_type: '82540EM',
+                virtualbox__intnet: "#{UUID}_vqfx#{id}_internal"
+
+            # Unused em2 port we need to exclude
+            vqfx.vm.network 'private_network',
+                auto_config: false, nic_type: '82540EM',
+                virtualbox__intnet: "#{UUID}_vqfx#{id}_reserved-bridge"
+
+            # Interconnect link between vqfx (xe-0/0/0)
+            vqfx.vm.network 'private_network',
+                auto_config: false,
+                nic_type: '82540EM',
+                virtualbox__intnet: "#{UUID}_vqfx_interconnect"
+
+            # Dataplane ports (Yes, dataplane ports are mapped on the RE and not PFE for vQFX10k)
+            (1..4).each do |seg_id|
+               vqfx.vm.network 'private_network',
+                auto_config: false,
+                nic_type: '82540EM',
+                virtualbox__intnet: "#{UUID}_vqfx#{id}_seg#{seg_id}"
+            end
+            vqfx.vm.provider "virtualbox" do |v|
+                v.customize ["modifyvm", :id, "--uartmode1", "file", "NUL"]
+            end
+            vqfx.vm.provider "virtualbox" do |v|
+               v.customize ["modifyvm", :id, "--cpuexecutioncap", "50"]
+               v.customize ["modifyvm", :id, "--memory", "1024", "--cpus", "1"]
+            end
+        end
+    end
+
+    ##########################
+    ## Server at spine #######
+    ##########################
+
+    config.vm.define "s-srv" do |srv|
+        srv.vm.box = "robwc/minitrusty64"
+        srv.vm.hostname = "s-srv"
+        srv.vm.network 'private_network',
+            ip: "172.16.1.100",
+            nic_type: '82540EM',
+            virtualbox__intnet: "#{UUID}_vqfx1_seg1"
+        srv.ssh.insert_key = true
+        srv.vm.provider :virtualbox do |vb|
+            vb.customize ["modifyvm", :id, "--memory", "512", "--cpus", "1"]
+        end                
+    end
+
+
+    config.vm.provision "ansible" do |ansible|
+        ansible.groups = {
+            "vqfx10k" => ["vqfx1", "vqfx2" ],
+            "vqfx10k-pfe"  => ["vqfx1-pfe", "vqfx2-pfe"],
+            "all:children" => ["vqfx10k", "vqfx10k-pfe"]
+        }
+        ansible.playbook = "pb.conf.all.commit.yaml"
+    end
+
+end

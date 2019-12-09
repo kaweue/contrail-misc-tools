@@ -5,3 +5,5 @@ RUN apk update && apk upgrade && \
 
 RUN git clone --branch v0.10.x https://github.com/operator-framework/operator-sdk $GOPATH/src/operator-framework/operator-sdk
 RUN cd $GOPATH/src/operator-framework/operator-sdk; make install
+
+RUN apk add --update docker-cli

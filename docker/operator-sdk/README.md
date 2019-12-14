@@ -1,5 +1,5 @@
 ## Recommended usage:
-
+test
 ```bash
 docker build . -t operator-sdk
 docker run -it -v ~/project_dir:/project operator-sdk bash

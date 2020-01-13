@@ -1,0 +1,13 @@
+diff --git a/docker/contrail-controller-webui-web/functions.sh b/docker/contrail-controller-webui-web/functions.sh
+index a7e4216..2e8caed 100644
+--- a/docker/contrail-controller-webui-web/functions.sh
++++ b/docker/contrail-controller-webui-web/functions.sh
+@@ -65,7 +65,7 @@ function get_default_ip() {
+ }
+ 
+ function get_local_ips() {
+-  cat "/proc/net/fib_trie" | awk '/32 host/ { print f } {f=$2}' | grep -vi 'host' | sort | uniq
++  cat "/proc/net/fib_trie" | awk '/32 host/ { print f } {f=$2}' | grep -viE 'host|link' | sort | uniq
+ }
+ 
+ function find_my_ip_and_order_for_node() {
